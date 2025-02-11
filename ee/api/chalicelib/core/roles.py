@@ -112,6 +112,35 @@ def create(tenant_id, user_id, data: schemas.RolePayloadSchema):
             row["projects"] = [r["project_id"] for r in cur.fetchall()]
     return helper.dict_to_camel_case(row)
 
+def create_as_admin(tenant_id, data: schemas.RolePayloadSchema):
+    
+    if __exists_by_name(tenant_id=tenant_id, name=data.name, exclude_id=None):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"name already exists.")
+
+    if not data.all_projects and (data.projects is None or len(data.projects) == 0):
+        return {"errors": ["must specify a project or all projects"]}
+    if data.projects is not None and len(data.projects) > 0 and not data.all_projects:
+        data.projects = projects.is_authorized_batch(project_ids=data.projects, tenant_id=tenant_id)
+    with pg_client.PostgresClient() as cur:
+        query = cur.mogrify("""INSERT INTO roles(tenant_id, name, description, permissions, all_projects)
+                               VALUES (%(tenant_id)s, %(name)s, %(description)s, %(permissions)s::text[], %(all_projects)s)
+                               RETURNING *;""",
+                            {"tenant_id": tenant_id, "name": data.name, "description": data.description,
+                             "permissions": data.permissions, "all_projects": data.all_projects})
+        cur.execute(query=query)
+        row = cur.fetchone()
+        row["created_at"] = TimeUTC.datetime_to_timestamp(row["created_at"])
+        row["projects"] = []
+        if not data.all_projects:
+            role_id = row["role_id"]
+            query = cur.mogrify(f"""INSERT INTO roles_projects(role_id, project_id)
+                                    VALUES {",".join(f"(%(role_id)s,%(project_id_{i})s)" for i in range(len(data.projects)))}
+                                    RETURNING project_id;""",
+                                {"role_id": role_id, **{f"project_id_{i}": p for i, p in enumerate(data.projects)}})
+            cur.execute(query=query)
+            row["projects"] = [r["project_id"] for r in cur.fetchall()]
+    return helper.dict_to_camel_case(row)
+
 
 def get_roles(tenant_id):
     with pg_client.PostgresClient() as cur:
@@ -165,7 +194,7 @@ def delete(tenant_id, user_id, role_id):
         cur.execute(query=query)
         if cur.fetchone() is not None:
             return {"errors": ["this role is protected"]}
-        query = cur.mogrify("""SELECT 1 
+        query = cur.mogrify("""SELECT 1
                                FROM public.users 
                                WHERE role_id = %(role_id)s
                                     AND tenant_id = %(tenant_id)s
