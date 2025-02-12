@@ -1,0 +1,26 @@
+version: '3'
+
+services:
+  openreplay:
+    image: openreplay/openreplay:latest
+    environment:
+      - DOMAIN_NAME=localhost
+      - POSTGRES_STRING=${DATABASE_URL}
+      - REDIS_STRING=${REDIS_STRING}
+      - JWT_SECRET=${JWT_SECRET}
+      - BEACON_SIZE_LIMIT=7000000
+      - ASSETS_SIZE_LIMIT=60291456
+      - DB_BATCH_SIZE_LIMIT=10000000
+      - QUEUE_MESSAGE_SIZE_LIMIT=1048576
+    ports:
+      - "8080:8080"
+      - "9000:9000"
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/healthz"]
+      interval: 30s
+      timeout: 30s
+      retries: 3
+      start_period: 40s
+    volumes:
+      - ./data:/var/lib/openreplay
+    restart: unless-stopped 
