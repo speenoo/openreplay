@@ -1,45 +1,56 @@
-FROM ubuntu:20.04
+FROM golang:1.21-alpine AS builder
 
-# Prevent interactive prompts during installation
-ENV DEBIAN_FRONTEND=noninteractive
+# Install build dependencies
+RUN apk add --no-cache git gcc g++ make libc-dev bash librdkafka-dev cyrus-sasl openssl-dev pkgconfig
 
-# Install required packages
-RUN apt-get update && apt-get install -y \
-    curl \
-    wget \
-    git \
-    && rm -rf /var/lib/apt/lists/*
-
-# Set working directory
-WORKDIR /app
+WORKDIR /build
 
 # Clone OpenReplay repository
 RUN git clone https://github.com/openreplay/openreplay.git && \
     cd openreplay && \
     git checkout v1.21.0
 
+# Build the backend
+WORKDIR /build/openreplay/backend
+RUN go mod download && \
+    CGO_ENABLED=1 GOOS=linux go build -o http ./cmd/http
+
+# Final stage
+FROM alpine:latest
+
+# Install runtime dependencies
+RUN apk add --no-cache ca-certificates librdkafka wget
+
+WORKDIR /app
+
+# Copy the binary from builder
+COPY --from=builder /build/openreplay/backend/http .
+
 # Create startup script
-RUN echo '#!/bin/bash\n\
-echo "Starting OpenReplay services..."\n\
-cd /app/openreplay/backend\n\
+RUN echo '#!/bin/sh\n\
+echo "Starting OpenReplay HTTP service..."\n\
 \n\
-# Start HTTP service\n\
-echo "Starting HTTP service..."\n\
-./cmd/http/http &\n\
+# Start the service\n\
+./http &\n\
+HTTP_PID=$!\n\
 \n\
-# Wait for services to be ready\n\
-echo "Waiting for services to be ready..."\n\
+# Wait for service to start\n\
+echo "Waiting for service to start..."\n\
 sleep 10\n\
 \n\
-# Health check loop\n\
+# Monitor the service\n\
 while true; do\n\
-  if wget --no-verbose --tries=1 --spider http://localhost:8080/healthz; then\n\
-    echo "Service is healthy"\n\
-    sleep 30\n\
+  if kill -0 $HTTP_PID 2>/dev/null; then\n\
+    if wget -q --spider http://localhost:8080/healthz; then\n\
+      echo "Service is healthy"\n\
+    else\n\
+      echo "Service is running but not healthy"\n\
+    fi\n\
   else\n\
-    echo "Service is not healthy, checking logs..."\n\
-    sleep 5\n\
+    echo "Service has stopped, exiting..."\n\
+    exit 1\n\
   fi\n\
+  sleep 5\n\
 done' > start.sh && chmod +x start.sh
 
 # Set environment variables
@@ -55,9 +66,9 @@ ENV QUEUE_MESSAGE_SIZE_LIMIT=1048576
 # Expose ports
 EXPOSE 8080 9000
 
-# Set healthcheck with longer interval and start period
-HEALTHCHECK --interval=30s --timeout=30s --start-period=120s --retries=5 \
-    CMD wget --no-verbose --tries=1 --spider http://localhost:8080/healthz || exit 1
+# Set healthcheck
+HEALTHCHECK --interval=30s --timeout=30s --start-period=60s --retries=3 \
+    CMD wget -q --spider http://localhost:8080/healthz || exit 1
 
 # Run the startup script
 CMD ["./start.sh"] 
