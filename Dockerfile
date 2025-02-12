@@ -1,14 +1,16 @@
-FROM golang:1.21-alpine AS builder
+FROM golang:1.23-alpine AS builder
 
 # Install build dependencies
 RUN apk add --no-cache git gcc g++ make libc-dev bash librdkafka-dev cyrus-sasl openssl-dev pkgconfig
 
 WORKDIR /build
 
-# Clone OpenReplay repository
+# Clone OpenReplay repository and modify go.mod
 RUN git clone https://github.com/openreplay/openreplay.git && \
     cd openreplay && \
-    git checkout v1.21.0
+    git checkout v1.21.0 && \
+    cd backend && \
+    sed -i 's/go 1.23/go 1.22/' go.mod
 
 # Build the backend
 WORKDIR /build/openreplay/backend
@@ -71,4 +73,4 @@ HEALTHCHECK --interval=30s --timeout=30s --start-period=60s --retries=3 \
     CMD wget -q --spider http://localhost:8080/healthz || exit 1
 
 # Run the startup script
-CMD ["./start.sh"] 
+CMD ["./start.sh"]
