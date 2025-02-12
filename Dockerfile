@@ -21,7 +21,7 @@ RUN go mod download && \
 FROM alpine:latest
 
 # Install runtime dependencies
-RUN apk add --no-cache ca-certificates librdkafka wget
+RUN apk add --no-cache ca-certificates librdkafka wget curl
 
 WORKDIR /app
 
@@ -32,18 +32,21 @@ COPY --from=builder /build/openreplay/backend/http .
 RUN echo '#!/bin/sh\n\
 echo "Starting OpenReplay HTTP service..."\n\
 \n\
+# Set host to 0.0.0.0\n\
+export HOST="0.0.0.0"\n\
+\n\
 # Start the service\n\
 ./http &\n\
 HTTP_PID=$!\n\
 \n\
 # Wait for service to start\n\
 echo "Waiting for service to start..."\n\
-sleep 10\n\
+sleep 15\n\
 \n\
 # Monitor the service\n\
 while true; do\n\
   if kill -0 $HTTP_PID 2>/dev/null; then\n\
-    if wget -q --spider http://localhost:8080/healthz; then\n\
+    if curl -s -f http://0.0.0.0:8080/healthz >/dev/null 2>&1; then\n\
       echo "Service is healthy"\n\
     else\n\
       echo "Service is running but not healthy"\n\
@@ -56,6 +59,7 @@ while true; do\n\
 done' > start.sh && chmod +x start.sh
 
 # Set environment variables
+ENV HOST=0.0.0.0
 ENV DOMAIN_NAME=localhost
 ENV POSTGRES_STRING=""
 ENV REDIS_STRING=""
@@ -70,7 +74,7 @@ EXPOSE 8080 9000
 
 # Set healthcheck
 HEALTHCHECK --interval=30s --timeout=30s --start-period=60s --retries=3 \
-    CMD wget -q --spider http://localhost:8080/healthz || exit 1
+    CMD curl -f http://0.0.0.0:8080/healthz || exit 1
 
 # Run the startup script
 CMD ["./start.sh"]
