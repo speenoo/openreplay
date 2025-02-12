@@ -2,11 +2,14 @@
   "$schema": "https://railway.app/railway.schema.json",
   "build": {
     "builder": "DOCKERFILE",
-    "dockerfilePath": "backend/Dockerfile"
+    "dockerfilePath": "Dockerfile",
+    "buildCommand": "docker build -t openreplay-backend -f backend/Dockerfile ."
   },
   "deploy": {
     "numReplicas": 1,
-    "startCommand": "sh scripts/docker/init.sh",
+    "startCommand": "./service",
+    "healthcheckPath": "/healthz",
+    "healthcheckTimeout": 30,
     "restartPolicyType": "ON_FAILURE",
     "restartPolicyMaxRetries": 10
   }
