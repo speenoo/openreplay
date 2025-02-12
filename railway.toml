@@ -1,0 +1,18 @@
+[build]
+builder = "nixpacks"
+buildCommand = "echo 'Building OpenReplay...'"
+
+[deploy]
+startCommand = "sh scripts/docker/init.sh"
+healthcheckPath = "/healthz"
+healthcheckTimeout = 10
+restartPolicyType = "on_failure"
+
+[env]
+POSTGRES_STRING = "${DATABASE_URL}"
+REDIS_STRING = "${REDIS_STRING}"
+BEACON_SIZE_LIMIT = "7000000"
+ASSETS_SIZE_LIMIT = "60291456"
+DB_BATCH_SIZE_LIMIT = "10000000"
+QUEUE_MESSAGE_SIZE_LIMIT = "1048576"
+JWT_SECRET = "${JWT_SECRET}" 
