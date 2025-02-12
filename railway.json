@@ -7,7 +7,7 @@
   "deploy": {
     "numReplicas": 1,
     "healthcheckPath": "/healthz",
-    "healthcheckTimeout": 120,
+    "healthcheckTimeout": 180,
     "restartPolicyType": "ON_FAILURE",
     "restartPolicyMaxRetries": 10,
     "startCommand": "./start.sh",
@@ -19,7 +19,8 @@
       "BEACON_SIZE_LIMIT": "7000000",
       "ASSETS_SIZE_LIMIT": "60291456",
       "DB_BATCH_SIZE_LIMIT": "10000000",
-      "QUEUE_MESSAGE_SIZE_LIMIT": "1048576"
+      "QUEUE_MESSAGE_SIZE_LIMIT": "1048576",
+      "LOG_LEVEL": "debug"
     }
   }
 } 

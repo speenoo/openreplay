@@ -8,24 +8,30 @@ RUN apt-get update && apt-get install -y \
     curl \
     wget \
     git \
-    docker.io \
-    docker-compose \
-    python3 \
-    python3-pip \
     && rm -rf /var/lib/apt/lists/*
 
 # Set working directory
 WORKDIR /app
 
-# Copy installation script
-RUN curl -fsSL https://raw.githubusercontent.com/openreplay/openreplay/main/scripts/docker-compose/docker-install.sh -o install.sh \
-    && chmod +x install.sh
+# Clone OpenReplay repository
+RUN git clone https://github.com/openreplay/openreplay.git && \
+    cd openreplay && \
+    git checkout v1.21.0
 
 # Create startup script
 RUN echo '#!/bin/bash\n\
 echo "Starting OpenReplay services..."\n\
-./install.sh\n\
-echo "Installation complete, starting health check..."\n\
+cd /app/openreplay/backend\n\
+\n\
+# Start HTTP service\n\
+echo "Starting HTTP service..."\n\
+./cmd/http/http &\n\
+\n\
+# Wait for services to be ready\n\
+echo "Waiting for services to be ready..."\n\
+sleep 10\n\
+\n\
+# Health check loop\n\
 while true; do\n\
   if wget --no-verbose --tries=1 --spider http://localhost:8080/healthz; then\n\
     echo "Service is healthy"\n\
