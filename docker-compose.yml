@@ -1,35 +1,8 @@
 version: '3.8'
 
 services:
-  db:
-    image: postgres:14-alpine
-    environment:
-      - POSTGRES_DB=openreplay
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
-    volumes:
-      - ./data/postgres:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
-  redis:
-    image: redis:6.2-alpine
-    volumes:
-      - ./data/redis:/data
-    command: redis-server --appendonly yes
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
   openreplay:
-    image: openreplay/backend:latest
-    depends_on:
-      - db
-      - redis
+    image: openreplay/backend:v1.21.0
     environment:
       - DOMAIN_NAME=${DOMAIN_NAME:-localhost}
       - POSTGRES_STRING=${DATABASE_URL}
@@ -42,8 +15,6 @@ services:
     ports:
       - "8080:8080"
       - "9000:9000"
-    volumes:
-      - ./data/openreplay:/var/lib/openreplay
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/healthz"]
       interval: 30s
